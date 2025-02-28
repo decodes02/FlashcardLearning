@@ -295,18 +295,30 @@
      async function markReviewed() {
         if (flashcards.length === 0) return;
         const flashcard = flashcards[currentFlashcardIndex];
+
         try {
             const res = await fetch(`${API_URL}/flashcards/review/${flashcard.id}`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" }
             });
+
             const data = await res.json();
+
+            if (!data.review_count && data.review_count !== 0) {
+                throw new Error("Invalid API response");
+            }
+
+            // ✅ Update review count in flashcards list
+            flashcard.review_count = data.review_count;
+
             alert(`Marked as reviewed: ${data.review_count} times`);
+
         } catch (error) {
             console.error("Error marking flashcard as reviewed:", error);
             alert("Failed to mark flashcard as reviewed. Check console for details.");
         }
     }
+
 
 
     function displayFlashcard() {
