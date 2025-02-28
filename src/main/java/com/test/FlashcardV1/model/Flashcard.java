@@ -3,19 +3,26 @@ package com.test.FlashcardV1.model;
 import jakarta.persistence.*;
 import lombok.*;
 
-@Entity
-@Data
-@NoArgsConstructor
-@AllArgsConstructor
-@Table(name = "flashcards")
-public class Flashcard {
-    public String getQuestion() {
-        return question;
-    }
+import java.time.LocalDateTime;
 
-    public void setQuestion(String question) {
-        this.question = question;
-    }
+@Entity
+@Getter @Setter
+@NoArgsConstructor @AllArgsConstructor
+public class Flashcard {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    @Column(nullable = false)
+    private String question;
+
+    @Column(nullable = false)
+    private String answer;
+
+    private LocalDateTime nextReview;
+    private int reviewInterval = 1;
+    private float difficulty = 2.5f;
+    private int reviewCount = 0;
 
     public Long getId() {
         return id;
@@ -23,6 +30,14 @@ public class Flashcard {
 
     public void setId(Long id) {
         this.id = id;
+    }
+
+    public String getQuestion() {
+        return question;
+    }
+
+    public void setQuestion(String question) {
+        this.question = question;
     }
 
     public String getAnswer() {
@@ -40,17 +55,4 @@ public class Flashcard {
     public void setReviewCount(int reviewCount) {
         this.reviewCount = reviewCount;
     }
-
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
-
-    @Column(nullable = false, length = 255)
-    private String question;
-
-    @Column(nullable = false, length = 255)
-    private String answer;
-
-    @Column(nullable = false)
-    private int reviewCount = 0;
 }

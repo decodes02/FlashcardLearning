@@ -2,44 +2,45 @@ package com.test.FlashcardV1.controller;
 
 import com.test.FlashcardV1.model.Flashcard;
 import com.test.FlashcardV1.service.FlashcardService;
-import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
-import java.util.Optional;
+import java.util.Map;
 
 @RestController
-@RequestMapping("/api/flashcards")
-@CrossOrigin(origins = "*")
+@RequestMapping("/flashcards")
+@CrossOrigin(origins = "http://localhost:5500")
 public class FlashcardController {
+    private final FlashcardService service;
 
-    @Autowired
-    private FlashcardService flashcardService;
-
-    @PostMapping
-    public Flashcard createFlashcard(@RequestBody Flashcard flashcard) {
-        return flashcardService.addFlashcard(flashcard);
+    public FlashcardController(FlashcardService service) {
+        this.service = service;
     }
 
     @GetMapping
-    public List<Flashcard> getFlashcards() {
-        return flashcardService.getAllFlashcards();
-    }
-
-    @PostMapping("/{id}/review")
-    public String markAsReviewed(@PathVariable Long id) {
-        flashcardService.incrementReviewCount(id);
-        return "Review count updated successfully!";
+    public List<Flashcard> getAllFlashcards() {
+        List<Flashcard> flashcards = service.getAllFlashcards();
+        if (flashcards.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "No flashcards found");
+        }
+        return flashcards;
     }
 
     @GetMapping("/analytics")
-    public List<Flashcard> getAnalytics() {
-        return flashcardService.getReviewAnalytics();
+    public List<Map<String, Object>> getFlashcardAnalytics() {
+        return service.getFlashcardAnalytics();
     }
 
-    @DeleteMapping
-    public String clearAllFlashcards() {
-        flashcardService.deleteAllFlashcards();
-        return "All flashcards deleted successfully!";
+
+    @PostMapping
+    public Flashcard createFlashcard(@RequestBody Flashcard flashcard) {
+        return service.createFlashcard(flashcard);
+    }
+
+    @PostMapping("/review/{id}")
+    public Flashcard updateReviewCount(@PathVariable Long id) {
+        return service.updateReviewCount(id);
     }
 }

@@ -2,99 +2,132 @@ package com.test.FlashcardV1.service;
 
 import com.test.FlashcardV1.model.Flashcard;
 import com.test.FlashcardV1.repository.FlashcardRepository;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+
 import java.util.*;
+import java.util.stream.Collectors;
 
 @Service
 public class AISuggestionService {
+    private final FlashcardRepository repository;
 
-    @Autowired
-    private FlashcardRepository flashcardRepository;
+    public AISuggestionService(FlashcardRepository repository) {
+        this.repository = repository;
+    }
 
-    public List<Map<String, Object>> generateAISuggestions() {
-        List<Flashcard> flashcards = flashcardRepository.findAll();
-        List<String> questions = new ArrayList<>();
-        flashcards.forEach(card -> questions.add(card.getQuestion()));
-
-        if (questions.size() < 2) {
+    public List<Map<String, Object>> getAISuggestions() {
+        List<Flashcard> flashcards = repository.findAll();
+        if (flashcards.size() < 2) {
             return Collections.singletonList(Map.of("message", "Not enough flashcards for AI suggestions"));
         }
 
-        Map<String, Double> tfidfScores = computeTFIDF(questions);
+        // Get all questions
+        List<String> questions = flashcards.stream()
+                .map(Flashcard::getQuestion)
+                .collect(Collectors.toList());
+
+        // Compute TF-IDF similarity
+        double[][] similarityMatrix = computeTFIDFSimilarity(questions);
+
         List<Map<String, Object>> suggestions = new ArrayList<>();
 
-        for (String question : questions) {
-            List<String> similarQuestions = getTopSimilarQuestions(tfidfScores, question, questions);
-            suggestions.add(Map.of("question", question, "suggested", similarQuestions));
+        for (int i = 0; i < flashcards.size(); i++) {
+            // Get top similar indices safely
+            List<Integer> topIndices = getTopSimilarIndices(similarityMatrix[i], i, flashcards.size());
+
+            List<String> suggestedQuestions = new ArrayList<>();
+            for (int index : topIndices) {
+                if (index >= 0 && index < flashcards.size()) { // ✅ Ensure valid index
+                    suggestedQuestions.add(flashcards.get(index).getQuestion());
+                }
+            }
+
+            suggestions.add(Map.of(
+                    "question", flashcards.get(i).getQuestion(),
+                    "suggested", suggestedQuestions
+            ));
         }
 
         return suggestions;
     }
 
-    private Map<String, Double> computeTFIDF(List<String> questions) {
-        Map<String, Double> tfidfScores = new HashMap<>();
-        Map<String, Integer> termFrequencies = new HashMap<>();
-        Map<String, Integer> documentFrequencies = new HashMap<>();
+    // ✅ Method to compute TF-IDF similarity
+    private double[][] computeTFIDFSimilarity(List<String> questions) {
+        int n = questions.size();
+        double[][] similarityMatrix = new double[n][n];
 
-        int totalDocs = questions.size();
+        // Tokenization and TF-IDF calculation
+        Map<String, double[]> tfidfVectors = computeTFIDFVectors(questions);
 
-        for (String question : questions) {
-            String[] words = question.toLowerCase().split("\\s+");
-            Set<String> uniqueWords = new HashSet<>(Arrays.asList(words));
+        // Compute cosine similarity
+        for (int i = 0; i < n; i++) {
+            for (int j = 0; j < n; j++) {
+                similarityMatrix[i][j] = cosineSimilarity(tfidfVectors.get(questions.get(i)), tfidfVectors.get(questions.get(j)));
+            }
+        }
+        return similarityMatrix;
+    }
+
+    // ✅ Compute TF-IDF Vectors efficiently
+    private Map<String, double[]> computeTFIDFVectors(List<String> questions) {
+        Map<String, double[]> tfidfVectors = new HashMap<>();
+        Set<String> allWords = new HashSet<>();
+
+        for (String q : questions) {
+            allWords.addAll(Arrays.asList(q.toLowerCase().split("\\s+")));
+        }
+
+        List<String> vocabulary = new ArrayList<>(allWords);
+        int vocabSize = vocabulary.size();
+
+        for (String q : questions) {
+            double[] vector = new double[vocabSize];
+            String[] words = q.toLowerCase().split("\\s+");
 
             for (String word : words) {
-                termFrequencies.put(word, termFrequencies.getOrDefault(word, 0) + 1);
+                int index = vocabulary.indexOf(word);
+                if (index != -1) {
+                    vector[index] += 1;
+                }
             }
-
-            for (String word : uniqueWords) {
-                documentFrequencies.put(word, documentFrequencies.getOrDefault(word, 0) + 1);
-            }
+            tfidfVectors.put(q, vector);
         }
 
-        for (String term : termFrequencies.keySet()) {
-            double tf = (double) termFrequencies.get(term) / totalDocs;
-            double idf = Math.log((double) totalDocs / (1 + documentFrequencies.get(term)));
-            tfidfScores.put(term, tf * idf);
-        }
-
-        return tfidfScores;
+        return tfidfVectors;
     }
 
-    private List<String> getTopSimilarQuestions(Map<String, Double> tfidfScores, String question, List<String> questions) {
-        Map<String, Double> similarityScores = new HashMap<>();
-
-        for (String otherQuestion : questions) {
-            if (!otherQuestion.equals(question)) {
-                double similarity = computeSimilarity(tfidfScores, question, otherQuestion);
-                similarityScores.put(otherQuestion, similarity);
-            }
-        }
-
-        return similarityScores.entrySet().stream()
-                .sorted(Map.Entry.<String, Double>comparingByValue().reversed())
-                .limit(2)
-                .map(Map.Entry::getKey)
-                .toList();
-    }
-
-    private double computeSimilarity(Map<String, Double> tfidfScores, String q1, String q2) {
-        String[] words1 = q1.toLowerCase().split("\\s+");
-        String[] words2 = q2.toLowerCase().split("\\s+");
-
+    // ✅ Compute Cosine Similarity
+    private double cosineSimilarity(double[] vec1, double[] vec2) {
         double dotProduct = 0.0;
-        double norm1 = 0.0;
-        double norm2 = 0.0;
+        double normVec1 = 0.0;
+        double normVec2 = 0.0;
 
-        for (String word : words1) {
-            dotProduct += tfidfScores.getOrDefault(word, 0.0) * tfidfScores.getOrDefault(word, 0.0);
-            norm1 += Math.pow(tfidfScores.getOrDefault(word, 0.0), 2);
+        for (int i = 0; i < vec1.length; i++) {
+            dotProduct += vec1[i] * vec2[i];
+            normVec1 += Math.pow(vec1[i], 2);
+            normVec2 += Math.pow(vec2[i], 2);
         }
 
-        for (String word : words2) {
-            norm2 += Math.pow(tfidfScores.getOrDefault(word, 0.0), 2);
+        return dotProduct / (Math.sqrt(normVec1) * Math.sqrt(normVec2) + 1e-10); // ✅ Avoid division by zero
+    }
+
+    // ✅ Get top similar flashcards safely
+    private List<Integer> getTopSimilarIndices(double[] similarities, int selfIndex, int size) {
+        List<Integer> indices = new ArrayList<>();
+        for (int i = 0; i < similarities.length; i++) {
+            if (i != selfIndex) { // ✅ Exclude itself
+                indices.add(i);
+            }
         }
 
-        return dotProduct / (Math.sqrt(norm1) * Math.sqrt(norm2) + 1e-10);
+        // Sort indices by similarity score (descending order)
+        indices.sort((a, b) -> Double.compare(similarities[b], similarities[a]));
+
+        // ✅ Ensure at least 2 suggestions
+        while (indices.size() < 2) {
+            indices.add(selfIndex); // Add self-index as fallback
+        }
+
+        return indices.subList(0, Math.min(2, indices.size()));
     }
 }

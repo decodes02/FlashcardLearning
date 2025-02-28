@@ -2,41 +2,50 @@ package com.test.FlashcardV1.service;
 
 import com.test.FlashcardV1.model.Flashcard;
 import com.test.FlashcardV1.repository.FlashcardRepository;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+
+import java.io.Serializable;
+import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
-import java.util.Optional;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 @Service
 public class FlashcardService {
+    private final FlashcardRepository repository;
 
-    @Autowired
-    private FlashcardRepository flashcardRepository;
-
-    public Flashcard addFlashcard(Flashcard flashcard) {
-        return flashcardRepository.save(flashcard);
+    public FlashcardService(FlashcardRepository repository) {
+        this.repository = repository;
     }
 
     public List<Flashcard> getAllFlashcards() {
-        return flashcardRepository.findAll();
+        return repository.findAll();
     }
 
-    public Optional<Flashcard> getFlashcardById(Long id) {
-        return flashcardRepository.findById(id);
+    public Flashcard createFlashcard(Flashcard flashcard) {
+        return repository.save(flashcard);
     }
 
-    public void deleteAllFlashcards() {
-        flashcardRepository.deleteAll();
-    }
-
-    public List<Flashcard> getReviewAnalytics() {
-        return flashcardRepository.findAllByOrderByReviewCountDesc();
-    }
-
-    public void incrementReviewCount(Long id) {
-        flashcardRepository.findById(id).ifPresent(flashcard -> {
+    public Flashcard updateReviewCount(Long id) {
+        return repository.findById(id).map(flashcard -> {
             flashcard.setReviewCount(flashcard.getReviewCount() + 1);
-            flashcardRepository.save(flashcard);
-        });
+            return repository.save(flashcard);
+        }).orElse(null);
     }
+
+    public List<Map<String, Object>> getFlashcardAnalytics() {
+        List<Flashcard> flashcards = repository.findAll();
+
+        return flashcards.stream()
+                .map(f -> {
+                    Map<String, Object> map = new HashMap<>();
+                    map.put("question", f.getQuestion());
+                    map.put("review_count", f.getReviewCount());
+                    return map;
+                })
+                .sorted(Comparator.comparingInt(a -> (Integer) ((Map<String, Object>) a).get("review_count")))
+                .collect(Collectors.toList());
+    }
+
 }

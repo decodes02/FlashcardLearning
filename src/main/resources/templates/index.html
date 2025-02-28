@@ -180,7 +180,7 @@
 
 </div>
 <script>
-    const API_URL = "http://127.0.0.1:5000";
+    const API_URL = "http://localhost:8080";  // NEW Spring Boot URL
     let flashcards = [];
     let currentFlashcardIndex = 0;
 
@@ -190,7 +190,12 @@
         document.getElementById('ai-suggestions').style.display = 'none';
 
         document.getElementById(section).style.display = 'block';
+
+        if (section === "flashcards") {
+            getFlashcards();
+        }
     }
+
 
     async function addFlashcard() {
         const question = document.getElementById("question").value.trim();
@@ -218,29 +223,43 @@
         }
     }
 
-    async function getFlashcards() {
+     async function getFlashcards() {
         try {
-            const res = await fetch(`${API_URL}/review?load=true`);
-            flashcards = await res.json();
+            const res = await fetch(`${API_URL}/flashcards`);
+            if (!res.ok) {
+                throw new Error("Failed to fetch flashcards");
+            }
 
-            if (flashcards.length === 0) {
+            flashcards = await res.json();
+            if (!Array.isArray(flashcards) || flashcards.length === 0) {
                 document.getElementById("flashcard-front").innerText = "No flashcards available.";
                 document.getElementById("flashcard-back").innerText = "Add new flashcards!";
                 return;
             }
 
+            // ✅ Reset the index to first flashcard
             currentFlashcardIndex = 0;
             displayFlashcard();
-            showSection('flashcards');
+
+            // ✅ Ensure flashcard section is visible
+            document.getElementById('flashcards').style.display = 'block';
+
         } catch (error) {
             console.error("Error fetching flashcards:", error);
-            alert("Failed to load flashcards. Check console for details.");
+            document.getElementById("flashcard-front").innerText = "Error loading flashcards.";
+            document.getElementById("flashcard-back").innerText = "Check backend API.";
         }
-    }
+     }
+
+
+
 
     async function getAnalytics() {
         try {
-            const res = await fetch(`${API_URL}/analytics`);
+            const res = await fetch(`${API_URL}/flashcards/analytics`);
+            if (!res.ok) {
+                throw new Error("Failed to fetch analytics");
+            }
             const data = await res.json();
             let html = "<ul>";
             data.forEach(f => {
@@ -273,32 +292,41 @@
         }
     }
 
-    async function markReviewed() {
+     async function markReviewed() {
         if (flashcards.length === 0) return;
         const flashcard = flashcards[currentFlashcardIndex];
         try {
-            const res = await fetch(`${API_URL}/review/${flashcard.id}`, {
+            const res = await fetch(`${API_URL}/flashcards/review/${flashcard.id}`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" }
             });
             const data = await res.json();
             alert(`Marked as reviewed: ${data.review_count} times`);
-
-            // Update analytics after marking
-            getAnalytics();
         } catch (error) {
             console.error("Error marking flashcard as reviewed:", error);
             alert("Failed to mark flashcard as reviewed. Check console for details.");
         }
     }
 
+
     function displayFlashcard() {
-        if (flashcards.length === 0) {
+        if (!flashcards || flashcards.length === 0) {
             document.getElementById("flashcard-front").innerText = "No flashcards available.";
             document.getElementById("flashcard-back").innerText = "Add new flashcards!";
             return;
         }
+
+        if (currentFlashcardIndex >= flashcards.length) {
+            currentFlashcardIndex = 0; // Reset index if out of bounds
+        }
+
         const flashcard = flashcards[currentFlashcardIndex];
+        if (!flashcard || !flashcard.question || !flashcard.answer) {
+            document.getElementById("flashcard-front").innerText = "Error loading flashcard.";
+            document.getElementById("flashcard-back").innerText = "Try adding new flashcards!";
+            return;
+        }
+
         document.getElementById("flashcard-front").innerText = flashcard.question;
         document.getElementById("flashcard-back").innerText = flashcard.answer;
     }
