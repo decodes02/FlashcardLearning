@@ -34,25 +34,16 @@ public class FlashcardController {
         return ResponseEntity.ok(service.getFlashcardAnalytics());
     }
 
-    // ✅ Add Single or Multiple Flashcards
+    // ✅ Add Single Flashcard
     @PostMapping
-    public ResponseEntity<?> createFlashcards(@RequestBody Object payload) {
-        if (payload instanceof List) {
-            // Handle multiple flashcards
-            @SuppressWarnings("unchecked")
-            List<Flashcard> flashcards = (List<Flashcard>) payload;
-            return ResponseEntity.ok(service.createMultipleFlashcards(flashcards));
-        } else if (payload instanceof Map) {
-            // Handle single flashcard
-            @SuppressWarnings("unchecked")
-            Map<String, String> flashcardData = (Map<String, String>) payload;
-            Flashcard flashcard = new Flashcard();
-            flashcard.setQuestion(flashcardData.get("question"));
-            flashcard.setAnswer(flashcardData.get("answer"));
-            return ResponseEntity.ok(service.createFlashcard(flashcard));
-        } else {
-            return ResponseEntity.badRequest().body(Map.of("error", "Invalid JSON format"));
-        }
+    public ResponseEntity<Flashcard> createFlashcard(@RequestBody Flashcard flashcard) {
+        return ResponseEntity.ok(service.createFlashcard(flashcard));
+    }
+
+    // ✅ Add Multiple Flashcards
+    @PostMapping("/bulk")
+    public ResponseEntity<List<Flashcard>> createMultipleFlashcards(@RequestBody List<Flashcard> flashcards) {
+        return ResponseEntity.ok(service.createMultipleFlashcards(flashcards));
     }
 
     // ✅ Update Review Count
